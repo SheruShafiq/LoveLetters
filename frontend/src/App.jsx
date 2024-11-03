@@ -1,12 +1,9 @@
 /* eslint-disable no-unused-vars */
 import { useState, useEffect } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 import './App.css'
 import { TextField, Button, Snackbar, Alert } from '@mui/material'
 
 function App() {
-  const [count, setCount] = useState(0)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
@@ -16,7 +13,7 @@ function App() {
   const [showLogin, setShowLogin] = useState(true)
 
   useEffect(() => {
-    const loggedInUser = localStorage.getItem('user')
+    const loggedInUser = getCookie('username')
     if (loggedInUser) {
       setIsLoggedIn(true)
     }
@@ -24,13 +21,16 @@ function App() {
 
   const handleCreateAccount = (e) => {
     e.preventDefault()
+    if (!validateInput(username, password)) return
+
     const apiUrl = 'http://localhost:8000/create-account'
     fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password }),
+      credentials: 'include'
     })
       .then(response => response.json())
       .then(data => {
@@ -46,19 +46,22 @@ function App() {
 
   const handleLogin = (e) => {
     e.preventDefault()
+    if (!validateInput(username, password)) return
+
     const apiUrl = 'http://localhost:8000/login'
     fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password }),
+      credentials: 'include'
     })
       .then(response => response.json())
       .then(data => {
         if (data.message) {
           setMessage(data.message)
-          localStorage.setItem('user', username)
+          setCookie('username', username, 30)
           setIsLoggedIn(true)
         } else {
           setMessage(data.error)
@@ -73,13 +76,13 @@ function App() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('user')
+    deleteCookie('username')
     setIsLoggedIn(false)
   }
 
   const handleViewAccounts = () => {
     const apiUrl = 'http://localhost:8000/view-accounts'
-    fetch(apiUrl)
+    fetch(apiUrl, { credentials: 'include' })
       .then(response => response.json())
       .then(data => setAccounts(data))
       .catch(error => {
@@ -91,6 +94,37 @@ function App() {
 
   const handleClose = () => {
     setOpen(false)
+  }
+
+  const validateInput = (username, password) => {
+    if (!username || !password) {
+      setMessage('Username and password are required')
+      setOpen(true)
+      return false
+    }
+    return true
+  }
+
+  const setCookie = (name, value, days) => {
+    const d = new Date()
+    d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000))
+    const expires = "expires=" + d.toUTCString()
+    document.cookie = name + "=" + value + ";" + expires + ";path=/"
+  }
+
+  const getCookie = (name) => {
+    const nameEQ = name + "="
+    const ca = document.cookie.split(';')
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i]
+      while (c.charAt(0) === ' ') c = c.substring(1, c.length)
+      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length)
+    }
+    return null
+  }
+
+  const deleteCookie = (name) => {
+    document.cookie = name + '=; Max-Age=-99999999;'
   }
 
   return ( 

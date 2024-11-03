@@ -1,15 +1,23 @@
 <?php
-header('Access-Control-Allow-Origin: *');
+session_start();
+
+header('Access-Control-Allow-Origin: http://localhost:5173'); // Adjust this to your frontend's URL
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
-
+header('Access-Control-Allow-Credentials: true');
 header('Content-Type: application/json');
-require 'vendor/autoload.php';
 
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+require 'vendor/autoload.php';
 use Dotenv\Dotenv;
 
 $dotenv = Dotenv::createImmutable(__DIR__);
 $dotenv->load();
+
 $host = 'db';
 $db   = $_ENV['POSTGRES_DB'];
 $user = $_ENV['POSTGRES_USER'];
@@ -18,8 +26,34 @@ $dsn = "pgsql:host=$host;port=5432;dbname=$db;";
 
 try {
     $conn = new PDO($dsn, $user, $pass);
+    createUsersTable($conn);
+} catch (PDOException $e) {
+    echo $e->getMessage();
+    exit;
+}
 
-    // Create users table if it doesn't exist
+switch ($_SERVER['REQUEST_METHOD']) {
+    case 'GET':
+        if ($_SERVER['REQUEST_URI'] === '/view-accounts') {
+            viewAccounts($conn);
+        }
+        break;
+    case 'POST':
+        if ($_SERVER['REQUEST_URI'] === '/create-account') {
+            createAccount($conn);
+        } elseif ($_SERVER['REQUEST_URI'] === '/login') {
+            login($conn);
+        } elseif ($_SERVER['REQUEST_URI'] === '/create-multiple-accounts') {
+            createMultipleAccounts($conn);
+        }
+        break;
+    default:
+        http_response_code(405);
+        echo json_encode(['error' => 'Method Not Allowed']);
+        break;
+}
+
+function createUsersTable($conn) {
     $createTableQuery = "
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -28,29 +62,28 @@ try {
         );
     ";
     $conn->exec($createTableQuery);
-} catch (PDOException $e) {
-    echo $e->getMessage();
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && $_SERVER['REQUEST_URI'] === '/view-accounts') {
+function viewAccounts($conn) {
+    if (!isset($_SESSION['username'])) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+
     $stmt = $conn->prepare("SELECT id, username FROM users");
     $stmt->execute();
     $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
     echo json_encode($result);
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SERVER['REQUEST_URI'] === '/create-account') {
+function createAccount($conn) {
     $input = json_decode(file_get_contents('php://input'), true);
-    $username = $input['username'];
+    $username = filter_var($input['username'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     $password = password_hash($input['password'], PASSWORD_BCRYPT);
 
-    // Check if username already exists
-    $stmt = $conn->prepare("SELECT id FROM users WHERE username = :username");
-    $stmt->bindParam(':username', $username);
-    $stmt->execute();
-    if ($stmt->rowCount() > 0) {
+    if (usernameExists($conn, $username)) {
         http_response_code(403);
         echo json_encode(['error' => 'Username already exists']);
         exit;
@@ -69,9 +102,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SERVER['REQUEST_URI'] === '/creat
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SERVER['REQUEST_URI'] === '/login') {
+function createMultipleAccounts($conn) {
     $input = json_decode(file_get_contents('php://input'), true);
-    $username = $input['username'];
+    $accounts = $input['accounts'];
+
+    foreach ($accounts as $account) {
+        $username = filter_var($account['username'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $password = password_hash($account['password'], PASSWORD_BCRYPT);
+
+        if (usernameExists($conn, $username)) {
+            echo json_encode(['error' => "Username $username already exists"]);
+            continue;
+        }
+
+        $stmt = $conn->prepare("INSERT INTO users (username, password) VALUES (:username, :password)");
+        $stmt->bindParam(':username', $username);
+        $stmt->bindParam(':password', $password);
+
+        if ($stmt->execute()) {
+            echo json_encode(['message' => "Account for $username created successfully"]);
+        } else {
+            echo json_encode(['error' => "Failed to create account for $username"]);
+        }
+    }
+    exit;
+}
+
+function login($conn) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $username = filter_var($input['username'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     $password = $input['password'];
 
     $stmt = $conn->prepare("SELECT password FROM users WHERE username = :username");
@@ -80,6 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SERVER['REQUEST_URI'] === '/login
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($password, $user['password'])) {
+        $_SESSION['username'] = $username;
+        setcookie('PHPSESSID', session_id(), time() + (86400 * 30), "/"); // Ensure session cookie is sent
         echo json_encode(['message' => 'Login successful']);
     } else {
         http_response_code(403);
@@ -88,4 +149,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SERVER['REQUEST_URI'] === '/login
     exit;
 }
 
+function usernameExists($conn, $username) {
+    $stmt = $conn->prepare("SELECT id FROM users WHERE username = :username");
+    $stmt->bindParam(':username', $username);
+    $stmt->execute();
+    return $stmt->rowCount() > 0;
+}
 ?>
