@@ -14,6 +14,11 @@ RUN docker-php-ext-install pdo_pgsql
 RUN pecl install xdebug \
     && docker-php-ext-enable xdebug
 
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+&& php composer-setup.php \
+&& php -r "unlink('composer-setup.php');" \
+&& mv composer.phar /usr/local/bin/composer
+
 # Copy Xdebug configuration
 COPY xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
 
