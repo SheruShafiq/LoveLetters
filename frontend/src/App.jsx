@@ -40,7 +40,6 @@ function App() {
       .catch(error => {
         setMessage('Error creating account')
         setOpen(true)
-        console.error('Error creating account:', error)
       })
   }
 
@@ -71,7 +70,6 @@ function App() {
       .catch(error => {
         setMessage('Error logging in')
         setOpen(true)
-        console.error('Error logging in:', error)
       })
   }
 
@@ -88,7 +86,6 @@ function App() {
       .catch(error => {
         setMessage('Error fetching accounts')
         setOpen(true)
-        console.error('Error fetching accounts:', error)
       })
   }
 

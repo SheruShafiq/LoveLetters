@@ -1,5 +1,9 @@
 <?php
-session_start();
+session_start([
+    'cookie_lifetime' => 86400, // 1 day
+    'cookie_secure' => true,    // Ensure the cookie is sent over HTTPS
+    'cookie_httponly' => true,  // Prevent JavaScript access to the session cookie
+]);
 
 header('Access-Control-Allow-Origin: http://localhost:5173');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -139,8 +143,9 @@ function login($conn) {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($password, $user['password'])) {
+        session_regenerate_id(true); 
         $_SESSION['username'] = $username;
-        setcookie('PHPSESSID', session_id(), time() + (86400 * 30), "/"); // Ensure session cookie is sent
+        setcookie('PHPSESSID', session_id(), time() + (86400 * 30), "/", "", true, true); 
         echo json_encode(['message' => 'Login successful']);
     } else {
         http_response_code(403);
