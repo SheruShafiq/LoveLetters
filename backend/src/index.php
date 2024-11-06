@@ -1,8 +1,8 @@
 <?php
 session_start([
-    'cookie_lifetime' => 86400, // 1 day
-    'cookie_secure' => true,    // Ensure the cookie is sent over HTTPS
-    'cookie_httponly' => true,  // Prevent JavaScript access to the session cookie
+    'cookie_lifetime' => 86400,
+    'cookie_secure' => true,
+    'cookie_httponly' => true,
 ]);
 
 header('Access-Control-Allow-Origin: http://localhost:5173');
@@ -23,7 +23,7 @@ $dotenv = Dotenv::createImmutable(__DIR__);
 $dotenv->load();
 
 $host = 'db';
-$db   = $_ENV['POSTGRES_DB'];
+$db = $_ENV['POSTGRES_DB'];
 $user = $_ENV['POSTGRES_USER'];
 $pass = $_ENV['POSTGRES_PASSWORD'];
 $dsn = "pgsql:host=$host;port=5432;dbname=$db;";
@@ -57,7 +57,8 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 }
 
-function createUsersTable($conn) {
+function createUsersTable($conn)
+{
     $createTableQuery = "
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -68,7 +69,8 @@ function createUsersTable($conn) {
     $conn->exec($createTableQuery);
 }
 
-function viewAccounts($conn) {
+function viewAccounts($conn)
+{
     if (!isset($_SESSION['username'])) {
         http_response_code(403);
         echo json_encode(['error' => 'Unauthorized']);
@@ -82,7 +84,8 @@ function viewAccounts($conn) {
     exit;
 }
 
-function createAccount($conn) {
+function createAccount($conn)
+{
     $input = json_decode(file_get_contents('php://input'), true);
     $username = filter_var($input['username'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     $password = password_hash($input['password'], PASSWORD_BCRYPT);
@@ -106,7 +109,8 @@ function createAccount($conn) {
     exit;
 }
 
-function createMultipleAccounts($conn) {
+function createMultipleAccounts($conn)
+{
     $input = json_decode(file_get_contents('php://input'), true);
     $accounts = $input['accounts'];
 
@@ -132,7 +136,8 @@ function createMultipleAccounts($conn) {
     exit;
 }
 
-function login($conn) {
+function login($conn)
+{
     $input = json_decode(file_get_contents('php://input'), true);
     $username = filter_var($input['username'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     $password = $input['password'];
@@ -143,9 +148,9 @@ function login($conn) {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($password, $user['password'])) {
-        session_regenerate_id(true); 
+        session_regenerate_id(true);
         $_SESSION['username'] = $username;
-        setcookie('PHPSESSID', session_id(), time() + (86400 * 30), "/", "", true, true); 
+        setcookie('PHPSESSID', session_id(), time() + (86400 * 30), "/", "", true, true);
         echo json_encode(['message' => 'Login successful']);
     } else {
         http_response_code(403);
@@ -154,10 +159,10 @@ function login($conn) {
     exit;
 }
 
-function usernameExists($conn, $username) {
+function usernameExists($conn, $username)
+{
     $stmt = $conn->prepare("SELECT id FROM users WHERE username = :username");
     $stmt->bindParam(':username', $username);
     $stmt->execute();
     return $stmt->rowCount() > 0;
 }
-?>
