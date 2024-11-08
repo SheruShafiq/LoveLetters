@@ -3,6 +3,7 @@ session_start([
     'cookie_lifetime' => 86400,
     'cookie_secure' => true,
     'cookie_httponly' => true,
+    'cookie_samesite' => 'Strict',
 ]);
 
 header('Access-Control-Allow-Origin: http://localhost:5173');
